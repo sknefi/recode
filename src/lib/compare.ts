@@ -46,22 +46,32 @@ const splitIndent = (line: string) => {
   };
 };
 
-const normalizePythonLine = (line: string, strictness: Strictness) => {
-  if (strictness === "strict") {
-    return line;
-  }
-
+const normalizeIndentEquivalentLine = (line: string) => {
   const { indent, body } = splitIndent(line);
 
-  return `${expandIndentTabs(indent)}${body.replace(/[ \t]/g, "")}`;
+  return `${expandIndentTabs(indent)}${body}`;
+};
+
+const normalizePythonLine = (line: string, strictness: Strictness) => {
+  const normalizedIndentLine = normalizeIndentEquivalentLine(line);
+
+  if (strictness === "strict") {
+    return normalizedIndentLine;
+  }
+
+  const { indent, body } = splitIndent(normalizedIndentLine);
+
+  return `${indent}${body.replace(/[ \t]/g, "")}`;
 };
 
 export const normalizeLine = (line: string, strictness: Strictness) => {
+  const normalizedIndentLine = normalizeIndentEquivalentLine(line);
+
   if (strictness === "strict") {
-    return line;
+    return normalizedIndentLine;
   }
 
-  return line.replace(/[ \t]/g, "");
+  return normalizedIndentLine.replace(/[ \t]/g, "");
 };
 
 const normalizeLineForLanguage = (

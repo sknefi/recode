@@ -12,6 +12,11 @@ describe("compare", () => {
     expect(isLineMatch("return(i);", "return (i);", "strict")).toBe(false);
   });
 
+  it("treats one leading tab as four spaces in strict mode", () => {
+    expect(isLineMatch("\treturn (i);", "    return (i);", "strict")).toBe(true);
+    expect(isLineMatch("\treturn (i);", "   return (i);", "strict")).toBe(false);
+  });
+
   it("ignores spaces and tabs in whitespace tolerant mode", () => {
     expect(isLineMatch("while(str[i])", "while (str[i])", "whitespace-tolerant")).toBe(
       true,
