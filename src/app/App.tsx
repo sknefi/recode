@@ -8,6 +8,7 @@ import {
   type AttemptComparison,
 } from "../lib/compare";
 import { formatModeLabel } from "../lib/format";
+import { detectLanguage } from "../lib/languageDetect";
 import { generateMissingPieces } from "../lib/missingPieces";
 import { maskPromptCode } from "../lib/promptMask";
 import {
@@ -385,6 +386,12 @@ export const App = () => {
   const canStart = referenceCode.trim().length > 0 && !referenceHasComments;
 
   const handleReferenceCodeChange = (value: string) => {
+    const detectedLanguage = detectLanguage(value);
+
+    if (detectedLanguage && detectedLanguage !== language) {
+      setLanguage(detectedLanguage);
+    }
+
     setReferenceCode(value);
     setSkeletonEdited(false);
   };
