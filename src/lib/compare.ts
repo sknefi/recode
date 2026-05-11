@@ -33,6 +33,11 @@ type ComparableLine = {
   text: string;
 };
 
+type MappingScope = {
+  indent: number;
+  mapping: IdentifierMapping;
+};
+
 const splitLines = (value: string) => value.replace(/\r\n/g, "\n").split("\n");
 
 const expandIndentTabs = (indent: string) => indent.replace(/\t/g, "    ");
@@ -171,6 +176,47 @@ const buildComparableLines = (
     );
 };
 
+const cloneIdentifierMapping = (mapping: IdentifierMapping): IdentifierMapping => ({
+  expectedToActual: new Map(mapping.expectedToActual),
+  actualToExpected: new Map(mapping.actualToExpected),
+});
+
+const pythonIndentLevel = (line: string) =>
+  expandIndentTabs(splitIndent(line).indent).length;
+
+const isPythonFunctionDefinition = (line: string) =>
+  /^\s*def\s+[A-Za-z_][A-Za-z0-9_]*\s*\(/.test(line);
+
+const createMappingTracker = (language: Language) => {
+  const globalMapping = createIdentifierMapping();
+  const scopes: MappingScope[] = [{ indent: -1, mapping: globalMapping }];
+
+  return (line: string) => {
+    if (language !== "python") {
+      return globalMapping;
+    }
+
+    if (line.trim().length === 0) {
+      return scopes[scopes.length - 1].mapping;
+    }
+
+    const indent = pythonIndentLevel(line);
+
+    while (scopes.length > 1 && indent <= scopes[scopes.length - 1].indent) {
+      scopes.pop();
+    }
+
+    if (isPythonFunctionDefinition(line)) {
+      const parentMapping = scopes[scopes.length - 1].mapping;
+      const functionMapping = cloneIdentifierMapping(parentMapping);
+      scopes.push({ indent, mapping: functionMapping });
+      return functionMapping;
+    }
+
+    return scopes[scopes.length - 1].mapping;
+  };
+};
+
 const isConfiguredLineMatch = (
   actual: string,
   expected: string,
@@ -278,11 +324,12 @@ const compareLines = (
   identifierMode: IdentifierMode,
 ): LineComparison[] => {
   const maxLineCount = Math.max(expectedLines.length, actualLines.length);
-  const identifierMapping = createIdentifierMapping();
+  const mappingForLine = createMappingTracker(language);
 
   return Array.from({ length: maxLineCount }, (_, index) => {
     const expected = expectedLines[index]?.text ?? "";
     const actual = actualLines[index]?.text ?? "";
+    const identifierMapping = mappingForLine(expected);
     const status: LineStatus = isConfiguredLineMatch(
       actual,
       expected,
@@ -411,7 +458,7 @@ export const getLineStatuses = (
   const maxLineCount = Math.max(rawExpectedLines.length, rawActualLines.length);
   const activeLineIndex = Math.max(rawActualLines.length - 1, 0);
   const activeLineNumber = rawActualLines.length;
-  const identifierMapping = createIdentifierMapping();
+  const mappingForLine = createMappingTracker(language);
 
   if (feedbackTiming === "submit" && !submitted) {
     return Array.from({ length: maxLineCount }, (_, index) => ({
@@ -475,6 +522,7 @@ export const getLineStatuses = (
     const lineNumber = actualLine?.lineNumber ?? expectedLine?.lineNumber ?? index + 1;
     let status: LineStatus = "pending";
     const lineIsComplete = lineNumber < activeLineNumber;
+    const identifierMapping = mappingForLine(expected);
 
     if (submitted) {
       status = isConfiguredLineMatch(

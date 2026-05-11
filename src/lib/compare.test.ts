@@ -490,6 +490,78 @@ describe("compare", () => {
     expect(statuses[4].status).toBe("incorrect");
   });
 
+  it("keeps flexible Python parameter renames scoped to their function", () => {
+    const comparison = compareAttempt(
+      [
+        "def evaluate_strategy(ind, opponent_history):",
+        "    last_moves = opponent_history[-1:]",
+        "    return last_moves",
+        "",
+        "def fk_solution(my_history, opponent_history):",
+        "    if opponent_history:",
+        "        return opponent_history[0]",
+        "    return 0",
+      ].join("\n"),
+      [
+        "def evaluate_strategy(ind, opponent_histoory):",
+        "    last_moves = opponent_history[-1:]",
+        "    return last_moves",
+        "",
+        "def fk_solution(my_history, opponent_history):",
+        "    if opponent_history:",
+        "        return opponent_history[0]",
+        "    return 0",
+      ].join("\n"),
+      "whitespace-tolerant",
+      "python",
+      "require",
+      "flexible",
+    );
+
+    expect(comparison.lineComparisons[1].status).toBe("incorrect");
+    expect(comparison.lineComparisons[4].status).toBe("correct");
+    expect(comparison.lineComparisons[5].status).toBe("correct");
+    expect(comparison.lineComparisons[6].status).toBe("correct");
+    expect(comparison.mismatchCount).toBe(1);
+  });
+
+  it("keeps scoped Python name feedback from leaking into later functions", () => {
+    const statuses = getLineStatuses(
+      [
+        "def evaluate_strategy(ind, opponent_history):",
+        "    last_moves = opponent_history[-1:]",
+        "    return last_moves",
+        "",
+        "def fk_solution(my_history, opponent_history):",
+        "    if opponent_history:",
+        "        return opponent_history[0]",
+        "    return 0",
+      ].join("\n"),
+      [
+        "def evaluate_strategy(ind, opponent_histoory):",
+        "    last_moves = opponent_history[-1:]",
+        "    return last_moves",
+        "",
+        "def fk_solution(my_history, opponent_history):",
+        "    if opponent_history:",
+        "        return opponent_history[0]",
+        "    return 0",
+        "",
+      ].join("\n"),
+      "whitespace-tolerant",
+      "line",
+      false,
+      "python",
+      "require",
+      "flexible",
+    );
+
+    expect(statuses[1].status).toBe("incorrect");
+    expect(statuses[4].status).toBe("correct");
+    expect(statuses[5].status).toBe("correct");
+    expect(statuses[6].status).toBe("correct");
+  });
+
   it("does not allow keywords to be renamed in flexible names mode", () => {
     const comparison = compareAttempt(
       "return value",
