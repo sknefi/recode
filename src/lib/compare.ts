@@ -28,7 +28,33 @@ export type AttemptComparison = {
   lineComparisons: LineComparison[];
 };
 
+type ComparableLine = {
+  lineNumber: number;
+  text: string;
+};
+
 const splitLines = (value: string) => value.replace(/\r\n/g, "\n").split("\n");
+
+const expandIndentTabs = (indent: string) => indent.replace(/\t/g, "    ");
+
+const splitIndent = (line: string) => {
+  const match = line.match(/^([ \t]*)(.*)$/);
+
+  return {
+    indent: match ? match[1] : "",
+    body: match ? match[2] : line,
+  };
+};
+
+const normalizePythonLine = (line: string, strictness: Strictness) => {
+  if (strictness === "strict") {
+    return line;
+  }
+
+  const { indent, body } = splitIndent(line);
+
+  return `${expandIndentTabs(indent)}${body.replace(/[ \t]/g, "")}`;
+};
 
 export const normalizeLine = (line: string, strictness: Strictness) => {
   if (strictness === "strict") {
@@ -36,6 +62,18 @@ export const normalizeLine = (line: string, strictness: Strictness) => {
   }
 
   return line.replace(/[ \t]/g, "");
+};
+
+const normalizeLineForLanguage = (
+  line: string,
+  strictness: Strictness,
+  language: Language,
+) => {
+  if (language === "python") {
+    return normalizePythonLine(line, strictness);
+  }
+
+  return normalizeLine(line, strictness);
 };
 
 export const normalizeText = (
@@ -47,8 +85,10 @@ export const normalizeText = (
     return text.replace(/\s/g, "");
   }
 
-  return splitLines(text)
-    .map((line) => normalizeLine(line, strictness))
+  return buildComparableLines(text, strictness, language)
+    .map((line) =>
+      normalizeLineForLanguage(line.text, strictness, language ?? "c"),
+    )
     .join("\n");
 };
 
@@ -63,6 +103,64 @@ export const isLineMatch = (actual: string, expected: string, strictness: Strict
   return normalizeLine(actual, strictness) === normalizeLine(expected, strictness);
 };
 
+const isLineMatchForLanguage = (
+  actual: string,
+  expected: string,
+  strictness: Strictness,
+  language: Language,
+) => {
+  return (
+    normalizeLineForLanguage(actual, strictness, language) ===
+    normalizeLineForLanguage(expected, strictness, language)
+  );
+};
+
+const isPrefixMatchForLanguage = (
+  actual: string,
+  expected: string,
+  strictness: Strictness,
+  language: Language,
+) => {
+  const normalizedActual = normalizeLineForLanguage(actual, strictness, language);
+  const normalizedExpected = normalizeLineForLanguage(expected, strictness, language);
+
+  return normalizedExpected.startsWith(normalizedActual);
+};
+
+const isPythonIndentMatch = (
+  actual: string,
+  expected: string,
+  strictness: Strictness,
+  language: Language,
+) => {
+  if (language !== "python" || strictness !== "whitespace-tolerant") {
+    return true;
+  }
+
+  return expandIndentTabs(splitIndent(actual).indent) ===
+    expandIndentTabs(splitIndent(expected).indent);
+};
+
+const buildComparableLines = (
+  text: string,
+  strictness: Strictness,
+  language: Language = "c",
+): ComparableLine[] => {
+  return splitLines(text)
+    .map((line, index) => ({
+      lineNumber: index + 1,
+      text: line,
+    }))
+    .filter(
+      (line) =>
+        !(
+          language === "python" &&
+          strictness === "whitespace-tolerant" &&
+          line.text.trim().length === 0
+        ),
+    );
+};
+
 const isConfiguredLineMatch = (
   actual: string,
   expected: string,
@@ -72,6 +170,10 @@ const isConfiguredLineMatch = (
   mapping?: IdentifierMapping,
 ) => {
   if (identifierMode === "flexible") {
+    if (!isPythonIndentMatch(actual, expected, strictness, language)) {
+      return false;
+    }
+
     return isFlexibleIdentifierLineMatch(actual, expected, strictness, language, mapping);
   }
 
@@ -83,7 +185,9 @@ const isConfiguredLineMatch = (
     language,
     identifierMapping,
   );
-  const matches = isLineMatch(actual, expected, strictness) && !hasIdentifierConflict;
+  const matches =
+    isLineMatchForLanguage(actual, expected, strictness, language) &&
+    !hasIdentifierConflict;
 
   learnDefinitionIdentifierMappings(
     actual,
@@ -157,8 +261,8 @@ const isConfiguredTextMatch = (
 };
 
 const compareLines = (
-  expectedLines: string[],
-  actualLines: string[],
+  expectedLines: ComparableLine[],
+  actualLines: ComparableLine[],
   strictness: Strictness,
   language: Language,
   identifierMode: IdentifierMode,
@@ -167,8 +271,8 @@ const compareLines = (
   const identifierMapping = createIdentifierMapping();
 
   return Array.from({ length: maxLineCount }, (_, index) => {
-    const expected = expectedLines[index] ?? "";
-    const actual = actualLines[index] ?? "";
+    const expected = expectedLines[index]?.text ?? "";
+    const actual = actualLines[index]?.text ?? "";
     const status: LineStatus = isConfiguredLineMatch(
       actual,
       expected,
@@ -181,7 +285,8 @@ const compareLines = (
       : "incorrect";
 
     return {
-      lineNumber: index + 1,
+      lineNumber:
+        actualLines[index]?.lineNumber ?? expectedLines[index]?.lineNumber ?? index + 1,
       expected,
       actual,
       status,
@@ -207,9 +312,19 @@ export const compareAttempt = (
     language,
     commentBehavior,
   );
-  const expectedLines = splitLines(expectedComparableText);
-  const actualLines = splitLines(actualComparableText);
-  const maxLineCount = Math.max(expectedLines.length, actualLines.length);
+  const rawExpectedLines = splitLines(expectedComparableText);
+  const rawActualLines = splitLines(actualComparableText);
+  const expectedLines = buildComparableLines(
+    expectedComparableText,
+    strictness,
+    language,
+  );
+  const actualLines = buildComparableLines(
+    actualComparableText,
+    strictness,
+    language,
+  );
+  const maxLineCount = Math.max(rawExpectedLines.length, rawActualLines.length);
 
   if (isCWhitespaceAgnostic(strictness, language)) {
     const textMatches = isConfiguredTextMatch(
@@ -226,8 +341,8 @@ export const compareAttempt = (
         mismatchCount: 0,
         lineComparisons: Array.from({ length: maxLineCount }, (_, index) => ({
           lineNumber: index + 1,
-          expected: expectedLines[index] ?? "",
-          actual: actualLines[index] ?? "",
+          expected: rawExpectedLines[index] ?? "",
+          actual: rawActualLines[index] ?? "",
           status: "correct",
         })),
       };
@@ -271,17 +386,28 @@ export const getLineStatuses = (
     language,
     commentBehavior,
   );
-  const expectedLines = splitLines(expectedComparableText);
-  const actualLines = splitLines(actualComparableText);
-  const maxLineCount = Math.max(expectedLines.length, actualLines.length);
-  const activeLineIndex = Math.max(actualLines.length - 1, 0);
+  const rawExpectedLines = splitLines(expectedComparableText);
+  const rawActualLines = splitLines(actualComparableText);
+  const expectedLines = buildComparableLines(
+    expectedComparableText,
+    strictness,
+    language,
+  );
+  const actualLines = buildComparableLines(
+    actualComparableText,
+    strictness,
+    language,
+  );
+  const maxLineCount = Math.max(rawExpectedLines.length, rawActualLines.length);
+  const activeLineIndex = Math.max(rawActualLines.length - 1, 0);
+  const activeLineNumber = rawActualLines.length;
   const identifierMapping = createIdentifierMapping();
 
   if (feedbackTiming === "submit" && !submitted) {
     return Array.from({ length: maxLineCount }, (_, index) => ({
       lineNumber: index + 1,
-      expected: expectedLines[index] ?? "",
-      actual: actualLines[index] ?? "",
+      expected: rawExpectedLines[index] ?? "",
+      actual: rawActualLines[index] ?? "",
       status: "pending",
     }));
   }
@@ -324,17 +450,21 @@ export const getLineStatuses = (
 
       return {
         lineNumber: index + 1,
-        expected: expectedLines[index] ?? "",
-        actual: actualLines[index] ?? "",
+        expected: rawExpectedLines[index] ?? "",
+        actual: rawActualLines[index] ?? "",
         status,
       };
     });
   }
 
-  return Array.from({ length: maxLineCount }, (_, index) => {
-    const expected = expectedLines[index] ?? "";
-    const actual = actualLines[index] ?? "";
+  return Array.from({ length: Math.max(expectedLines.length, actualLines.length) }, (_, index) => {
+    const expectedLine = expectedLines[index];
+    const actualLine = actualLines[index];
+    const expected = expectedLine?.text ?? "";
+    const actual = actualLine?.text ?? "";
+    const lineNumber = actualLine?.lineNumber ?? expectedLine?.lineNumber ?? index + 1;
     let status: LineStatus = "pending";
+    const lineIsComplete = lineNumber < activeLineNumber;
 
     if (submitted) {
       status = isConfiguredLineMatch(
@@ -348,12 +478,17 @@ export const getLineStatuses = (
         ? "correct"
         : "incorrect";
     } else if (feedbackTiming === "instant" && identifierMode === "exact") {
-      status = isPrefixMatch(actual, expected, strictness) ? "pending" : "incorrect";
-      if (isLineMatch(actual, expected, strictness) && index < activeLineIndex) {
+      status = isPrefixMatchForLanguage(actual, expected, strictness, language)
+        ? "pending"
+        : "incorrect";
+      if (
+        isLineMatchForLanguage(actual, expected, strictness, language) &&
+        lineIsComplete
+      ) {
         status = "correct";
       }
     } else if (feedbackTiming === "line" || identifierMode === "flexible") {
-      if (index < activeLineIndex) {
+      if (lineIsComplete) {
         status = isConfiguredLineMatch(
           actual,
           expected,
@@ -368,7 +503,7 @@ export const getLineStatuses = (
     }
 
     return {
-      lineNumber: index + 1,
+      lineNumber,
       expected,
       actual,
       status,

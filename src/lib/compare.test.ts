@@ -41,6 +41,60 @@ describe("compare", () => {
     expect(comparison.mismatchCount).toBe(2);
   });
 
+  it("allows extra blank Python lines in whitespace tolerant mode", () => {
+    const comparison = compareAttempt(
+      ["def run():", "    value = 1", "    return value"].join("\n"),
+      ["def run():", "", "", "    value = 1", "", "    return value"].join("\n"),
+      "whitespace-tolerant",
+      "python",
+      "require",
+    );
+
+    expect(comparison.completed).toBe(true);
+  });
+
+  it("treats one Python tab as four spaces in indentation checks", () => {
+    const comparison = compareAttempt(
+      ["def run():", "\tvalue = 1", "\treturn value"].join("\n"),
+      ["def run():", "    value=1", "    returnvalue"].join("\n"),
+      "whitespace-tolerant",
+      "python",
+      "require",
+    );
+
+    expect(comparison.completed).toBe(true);
+  });
+
+  it("rejects wrong Python indentation in whitespace tolerant mode", () => {
+    const comparison = compareAttempt(
+      ["def run():", "    value = 1", "    return value"].join("\n"),
+      ["def run():", "              value = 1", "    return value"].join("\n"),
+      "whitespace-tolerant",
+      "python",
+      "require",
+    );
+
+    expect(comparison.completed).toBe(false);
+    expect(comparison.lineComparisons[1].status).toBe("incorrect");
+    expect(comparison.mismatchCount).toBe(1);
+  });
+
+  it("keeps Python line feedback aligned when extra blank lines are typed", () => {
+    const statuses = getLineStatuses(
+      ["def run():", "    value = 1", "    return value"].join("\n"),
+      ["def run():", "", "", "    value = 1", "", "    return value", ""].join("\n"),
+      "whitespace-tolerant",
+      "line",
+      false,
+      "python",
+      "require",
+      "exact",
+    );
+
+    expect(statuses.every((line) => line.status !== "incorrect")).toBe(true);
+    expect(statuses.map((line) => line.lineNumber)).toEqual([1, 4, 6]);
+  });
+
   it("ignores all C whitespace in whitespace tolerant mode", () => {
     const comparison = compareAttempt(
       ["int main(void)", "{", "\treturn (0);", "}"].join("\n"),
