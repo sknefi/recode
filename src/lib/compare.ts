@@ -35,6 +35,7 @@ type ComparableLine = {
 
 type MappingScope = {
   indent: number;
+  braceDepth: number;
   mapping: IdentifierMapping;
 };
 
@@ -187,13 +188,93 @@ const pythonIndentLevel = (line: string) =>
 const isPythonFunctionDefinition = (line: string) =>
   /^\s*def\s+[A-Za-z_][A-Za-z0-9_]*\s*\(/.test(line);
 
+const countCBraces = (line: string) => {
+  let open = 0;
+  let close = 0;
+  let quote: string | null = null;
+
+  for (let index = 0; index < line.length; index += 1) {
+    const char = line[index];
+
+    if (quote) {
+      if (char === "\\") {
+        index += 1;
+        continue;
+      }
+
+      if (char === quote) {
+        quote = null;
+      }
+
+      continue;
+    }
+
+    if (char === "'" || char === '"') {
+      quote = char;
+      continue;
+    }
+
+    if (char === "{") {
+      open += 1;
+    } else if (char === "}") {
+      close += 1;
+    }
+  }
+
+  return { open, close };
+};
+
+const countLeadingCClosures = (line: string) => {
+  const trimmedStart = line.trimStart();
+  let count = 0;
+
+  while (trimmedStart[count] === "}") {
+    count += 1;
+  }
+
+  return count;
+};
+
 const createMappingTracker = (language: Language) => {
   const globalMapping = createIdentifierMapping();
-  const scopes: MappingScope[] = [{ indent: -1, mapping: globalMapping }];
+  const scopes: MappingScope[] = [
+    { indent: -1, braceDepth: 0, mapping: globalMapping },
+  ];
+  let cBraceDepth = 0;
 
   return (line: string) => {
+    if (language === "c") {
+      const { open, close } = countCBraces(line);
+      const leadingClose = Math.min(countLeadingCClosures(line), close);
+
+      for (let index = 0; index < leadingClose; index += 1) {
+        cBraceDepth = Math.max(cBraceDepth - 1, 0);
+
+        while (
+          scopes.length > 1 &&
+          cBraceDepth < scopes[scopes.length - 1].braceDepth
+        ) {
+          scopes.pop();
+        }
+      }
+
+      const persistentOpenScopes = Math.max(open - (close - leadingClose), 0);
+
+      for (let index = 0; index < persistentOpenScopes; index += 1) {
+        const parentMapping = scopes[scopes.length - 1].mapping;
+        cBraceDepth += 1;
+        scopes.push({
+          indent: -1,
+          braceDepth: cBraceDepth,
+          mapping: cloneIdentifierMapping(parentMapping),
+        });
+      }
+
+      return scopes[scopes.length - 1].mapping;
+    }
+
     if (language !== "python") {
-      return globalMapping;
+      return scopes[0].mapping;
     }
 
     if (line.trim().length === 0) {
@@ -209,7 +290,7 @@ const createMappingTracker = (language: Language) => {
     if (isPythonFunctionDefinition(line)) {
       const parentMapping = scopes[scopes.length - 1].mapping;
       const functionMapping = cloneIdentifierMapping(parentMapping);
-      scopes.push({ indent, mapping: functionMapping });
+      scopes.push({ indent, braceDepth: 0, mapping: functionMapping });
       return functionMapping;
     }
 
@@ -493,6 +574,24 @@ export const getLineStatuses = (
             activeLineIndex,
           )
         : activeLineIndex;
+
+    if (!stillPossible && feedbackTiming === "line") {
+      return compareAttempt(
+        expectedText,
+        actualText,
+        strictness,
+        language,
+        commentBehavior,
+        identifierMode,
+      ).lineComparisons.map((line) =>
+        line.lineNumber < activeLineNumber
+          ? line
+          : {
+              ...line,
+              status: "pending",
+            },
+      );
+    }
 
     return Array.from({ length: maxLineCount }, (_, index) => {
       let status: LineStatus;

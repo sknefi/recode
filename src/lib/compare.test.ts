@@ -359,6 +359,74 @@ describe("compare", () => {
     expect(statuses[7].status).toBe("incorrect");
   });
 
+  it("keeps exact C parameter renames scoped to their function", () => {
+    const comparison = compareAttempt(
+      [
+        "int first(int value) {",
+        "    return value;",
+        "}",
+        "",
+        "int second(int value) {",
+        "    return value;",
+        "}",
+      ].join("\n"),
+      [
+        "int first(int vaalue) {",
+        "    return value;",
+        "}",
+        "",
+        "int second(int value) {",
+        "    return value;",
+        "}",
+      ].join("\n"),
+      "whitespace-tolerant",
+      "c",
+      "require",
+      "exact",
+    );
+
+    expect(comparison.lineComparisons[0].status).toBe("incorrect");
+    expect(comparison.lineComparisons[1].status).toBe("incorrect");
+    expect(comparison.lineComparisons[4].status).toBe("correct");
+    expect(comparison.lineComparisons[5].status).toBe("correct");
+    expect(comparison.mismatchCount).toBe(2);
+  });
+
+  it("keeps scoped C name feedback from leaking into later functions", () => {
+    const statuses = getLineStatuses(
+      [
+        "int first(int value) {",
+        "    return value;",
+        "}",
+        "",
+        "int second(int value) {",
+        "    return value;",
+        "}",
+      ].join("\n"),
+      [
+        "int first(int vaalue) {",
+        "    return value;",
+        "}",
+        "",
+        "int second(int value) {",
+        "    return value;",
+        "}",
+        "",
+      ].join("\n"),
+      "whitespace-tolerant",
+      "line",
+      false,
+      "c",
+      "require",
+      "exact",
+    );
+
+    expect(statuses[0].status).toBe("incorrect");
+    expect(statuses[1].status).toBe("incorrect");
+    expect(statuses[4].status).toBe("correct");
+    expect(statuses[5].status).toBe("correct");
+  });
+
   it("allows consistent Python identifier renaming in flexible names mode", () => {
     const comparison = compareAttempt(
       ["def size(text):", "    index = 0", "    return index"].join("\n"),
