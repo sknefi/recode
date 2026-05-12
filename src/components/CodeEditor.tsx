@@ -29,6 +29,8 @@ type CodeEditorProps = {
   readOnly?: boolean;
   className?: string;
   lineStatuses?: Array<{ lineNumber: number; status: LineStatus }>;
+  highlightedLineNumber?: number | null;
+  onCursorLineChange?: (lineNumber: number) => void;
   ariaLabel: string;
 };
 
@@ -278,15 +280,22 @@ export const CodeEditor = ({
   readOnly = false,
   className = "",
   lineStatuses = [],
+  highlightedLineNumber = null,
+  onCursorLineChange,
   ariaLabel,
 }: CodeEditorProps) => {
   const hostRef = useRef<HTMLDivElement | null>(null);
   const viewRef = useRef<EditorView | null>(null);
   const onChangeRef = useRef(onChange);
+  const onCursorLineChangeRef = useRef(onCursorLineChange);
 
   useEffect(() => {
     onChangeRef.current = onChange;
   }, [onChange]);
+
+  useEffect(() => {
+    onCursorLineChangeRef.current = onCursorLineChange;
+  }, [onCursorLineChange]);
 
   useEffect(() => {
     if (!hostRef.current) {
@@ -296,6 +305,12 @@ export const CodeEditor = ({
     const updateListener = EditorView.updateListener.of((update: ViewUpdate) => {
       if (update.docChanged && onChangeRef.current) {
         onChangeRef.current(update.state.doc.toString());
+      }
+
+      if ((update.selectionSet || update.docChanged) && onCursorLineChangeRef.current) {
+        onCursorLineChangeRef.current(
+          update.state.doc.lineAt(update.state.selection.main.head).number,
+        );
       }
     });
 
@@ -335,6 +350,9 @@ export const CodeEditor = ({
     });
 
     viewRef.current = view;
+    onCursorLineChangeRef.current?.(
+      view.state.doc.lineAt(view.state.selection.main.head).number,
+    );
 
     return () => {
       view.destroy();
@@ -367,6 +385,15 @@ export const CodeEditor = ({
 
     const builder = new RangeSetBuilder<Decoration>();
 
+    if (highlightedLineNumber && highlightedLineNumber <= view.state.doc.lines) {
+      const highlightedLine = view.state.doc.line(highlightedLineNumber);
+      builder.add(
+        highlightedLine.from,
+        highlightedLine.from,
+        Decoration.line({ class: "cm-line-reference-active" }),
+      );
+    }
+
     for (const line of lineStatuses) {
       if (line.status === "pending" || line.lineNumber > view.state.doc.lines) {
         continue;
@@ -383,7 +410,7 @@ export const CodeEditor = ({
     view.dispatch({
       effects: setLineDecorations.of(builder.finish()),
     });
-  }, [lineStatuses]);
+  }, [highlightedLineNumber, lineStatuses]);
 
   return (
     <div

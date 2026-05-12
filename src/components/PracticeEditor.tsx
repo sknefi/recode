@@ -9,6 +9,7 @@ type PracticeEditorProps = {
   codeTheme: CodeTheme;
   attemptCode: string;
   onAttemptCodeChange: (value: string) => void;
+  onCursorLineChange: (lineNumber: number) => void;
   lineStatuses: Array<{ lineNumber: number; status: LineStatus }>;
   elapsedMs: number;
   showTimer: boolean;
@@ -24,6 +25,7 @@ export const PracticeEditor = ({
   codeTheme,
   attemptCode,
   onAttemptCodeChange,
+  onCursorLineChange,
   lineStatuses,
   elapsedMs,
   showTimer,
@@ -58,6 +60,7 @@ export const PracticeEditor = ({
         <CodeEditor
           value={attemptCode}
           onChange={onAttemptCodeChange}
+          onCursorLineChange={onCursorLineChange}
           language={language}
           codeTheme={codeTheme}
           lineStatuses={lineStatuses}

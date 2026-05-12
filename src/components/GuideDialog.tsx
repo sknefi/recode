@@ -38,6 +38,7 @@ export const GuideDialog = ({ open, onClose }: GuideDialogProps) => {
           <section>
             <h3>Recommended Path</h3>
             <ol>
+              <li>Use Reference Mode when learning a new solution.</li>
               <li>Use Fog Mode to understand the structure.</li>
               <li>Use Missing Pieces to recall important lines.</li>
               <li>Use Function Skeleton to rebuild implementations.</li>
@@ -48,14 +49,14 @@ export const GuideDialog = ({ open, onClose }: GuideDialogProps) => {
           <section>
             <h3>Practice Modes</h3>
             <dl>
+              <dt>Reference Mode</dt>
+              <dd>Shows the full reference while you write.</dd>
               <dt>Fog Mode</dt>
               <dd>Shows a blurred reference while you write.</dd>
               <dt>Missing Pieces</dt>
               <dd>Starts with selected lines blanked out.</dd>
               <dt>Function Skeleton</dt>
               <dd>Keeps function shells and removes bodies.</dd>
-              <dt>Exact Typing</dt>
-              <dd>Hides the reference and checks as you reproduce it.</dd>
               <dt>Exam Mode</dt>
               <dd>Hides prompts and feedback until submit.</dd>
             </dl>

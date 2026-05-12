@@ -1,4 +1,4 @@
-export type PracticeMode = "exact" | "fog" | "missing-pieces" | "skeleton" | "exam";
+export type PracticeMode = "reference" | "fog" | "missing-pieces" | "skeleton" | "exam";
 
 export type Strictness = "strict" | "whitespace-tolerant";
 

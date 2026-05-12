@@ -7,6 +7,7 @@ type ReferencePanelProps = {
   codeTheme: CodeTheme;
   displayReferenceCode: string;
   displayPromptCode: string;
+  highlightedLineNumber: number | null;
 };
 
 export const ReferencePanel = ({
@@ -15,23 +16,27 @@ export const ReferencePanel = ({
   codeTheme,
   displayReferenceCode,
   displayPromptCode,
+  highlightedLineNumber,
 }: ReferencePanelProps) => {
-  if (mode === "exact" || mode === "exam") {
+  if (mode === "exam") {
     return (
       <section className="panel reference-panel hidden-reference">
         <p className="eyebrow">Reference</p>
-        <h2>{mode === "exam" ? "Exam Mode" : "Hidden"}</h2>
+        <h2>Exam Mode</h2>
         <p className="muted">
-          {mode === "exam"
-            ? "Write the solution without hints. Feedback appears after submit."
-            : "Write the solution from memory. Submit when ready."}
+          Write the solution without hints. Feedback appears after submit.
         </p>
       </section>
     );
   }
 
-  const label = mode === "fog" ? "Blurred Reference" : "Prompt";
-  const code = mode === "fog" ? displayReferenceCode : displayPromptCode;
+  const label =
+    mode === "fog"
+      ? "Blurred Reference"
+      : mode === "reference"
+        ? "Full Reference"
+        : "Prompt";
+  const code = mode === "fog" || mode === "reference" ? displayReferenceCode : displayPromptCode;
 
   return (
     <section className="panel reference-panel">
@@ -47,6 +52,7 @@ export const ReferencePanel = ({
           value={code}
           language={language}
           codeTheme={codeTheme}
+          highlightedLineNumber={highlightedLineNumber}
           readOnly
           ariaLabel={label}
         />

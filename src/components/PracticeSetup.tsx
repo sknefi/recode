@@ -47,9 +47,9 @@ type PracticeSetupProps = {
 
 const modes: Array<{ value: PracticeMode; title: string; body: string }> = [
   {
-    value: "exact",
-    title: "Exact Typing",
-    body: "Reference hidden. Reproduce the full code.",
+    value: "reference",
+    title: "Reference Mode",
+    body: "Full reference visible while you type.",
   },
   {
     value: "fog",
@@ -290,7 +290,7 @@ export const PracticeSetup = ({
           </label>
         </div>
 
-        {mode !== "exact" && mode !== "exam" && (
+        {mode !== "reference" && mode !== "exam" && (
           <div className="setting-group">
             <span className="setting-label">Masks</span>
             <div className="toggle-stack">
@@ -428,7 +428,7 @@ export const PracticeSetup = ({
           <span className="setting-label">Preview</span>
           <span className="preview-badge">{formatModeLabel(mode)}</span>
         </div>
-        <div className="editor-shell preview-editor">
+        <div className={`editor-shell preview-editor ${mode === "fog" ? "fogged" : ""}`}>
           <CodeEditor
             value={previewCode}
             language={language}

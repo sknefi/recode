@@ -471,6 +471,11 @@ body:has(.app-shell[data-theme="dark"]) {
   box-shadow: inset 4px 0 0 var(--success);
 }
 
+.reference-editor .cm-line-reference-active {
+  background: color-mix(in srgb, var(--accent) 24%, transparent);
+  box-shadow: inset 4px 0 0 var(--accent);
+}
+
 .mode-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));

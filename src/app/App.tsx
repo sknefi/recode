@@ -95,7 +95,17 @@ type StoredAppState = {
   theme: "light" | "dark";
 };
 
-const readStoredState = (): Partial<StoredAppState> => {
+type LegacyPracticeMode = PracticeMode | "exact";
+
+type StoredAppStateWithLegacyMode = Omit<StoredAppState, "mode"> & {
+  mode: LegacyPracticeMode;
+};
+
+type LegacyStoredAttemptSummary = Omit<StoredAttemptSummary, "mode"> & {
+  mode: LegacyPracticeMode;
+};
+
+const readStoredState = (): Partial<StoredAppStateWithLegacyMode> => {
   if (typeof window === "undefined") {
     return {};
   }
@@ -109,8 +119,16 @@ const readStoredState = (): Partial<StoredAppState> => {
   }
 };
 
+const normalizeStoredMode = (mode: LegacyPracticeMode | undefined): PracticeMode => {
+  if (mode === "exact") {
+    return "exam";
+  }
+
+  return mode ?? "fog";
+};
+
 const hydrateAttempts = (
-  attempts: StoredAppState["attempts"] | undefined,
+  attempts: LegacyStoredAttemptSummary[] | undefined,
 ): PracticeAttemptSummary[] => {
   if (!Array.isArray(attempts)) {
     return [];
@@ -118,6 +136,7 @@ const hydrateAttempts = (
 
   return attempts.slice(0, maxStoredAttempts).map((attempt) => ({
     ...attempt,
+    mode: normalizeStoredMode(attempt.mode),
     createdAt: new Date(attempt.createdAt),
   }));
 };
@@ -133,7 +152,9 @@ export const App = () => {
   const [referenceCode, setReferenceCode] = useState(
     storedState.referenceCode ?? sampleCode,
   );
-  const [mode, setMode] = useState<PracticeMode>(storedState.mode ?? "fog");
+  const [mode, setMode] = useState<PracticeMode>(
+    normalizeStoredMode(storedState.mode),
+  );
   const [strictness, setStrictness] = useState<Strictness>(
     storedState.strictness ?? "strict",
   );
@@ -173,6 +194,7 @@ export const App = () => {
   const [lastSummary, setLastSummary] = useState<PracticeAttemptSummary | null>(null);
   const [now, setNow] = useState(Date.now());
   const [guideOpen, setGuideOpen] = useState(false);
+  const [activeAttemptLine, setActiveAttemptLine] = useState(1);
   const [theme, setTheme] = useState<"light" | "dark">(
     storedState.theme ?? "dark",
   );
@@ -219,23 +241,23 @@ export const App = () => {
 
   const displayReferenceCode = useMemo(
     () =>
-      mode === "exact"
+      mode === "reference"
         ? referenceCodeForPrompt
         : maskPromptCode(referenceCodeForPrompt, promptMask),
     [mode, promptMask, referenceCodeForPrompt],
   );
 
   const displayPromptCode = useMemo(
-    () => (mode === "exact" ? promptCode : maskPromptCode(promptCode, promptMask)),
+    () => (mode === "reference" ? promptCode : maskPromptCode(promptCode, promptMask)),
     [mode, promptCode, promptMask],
   );
 
   const previewCode = useMemo(() => {
-    if (mode === "exact" || mode === "exam") {
+    if (mode === "exam") {
       return "";
     }
 
-    if (mode === "fog") {
+    if (mode === "fog" || mode === "reference") {
       return displayReferenceCode;
     }
 
@@ -471,6 +493,7 @@ export const App = () => {
     setFinishedAt(null);
     setNow(Date.now());
     setLastSummary(null);
+    setActiveAttemptLine(1);
     setPhase("practice");
   };
 
@@ -483,6 +506,7 @@ export const App = () => {
     setFinishedAt(null);
     setNow(Date.now());
     setLastSummary(null);
+    setActiveAttemptLine(1);
     setPhase("practice");
   };
 
@@ -523,6 +547,7 @@ export const App = () => {
     setFinishedAt(null);
     setNow(Date.now());
     setLastSummary(null);
+    setActiveAttemptLine(1);
     setPhase("practice");
   };
 
@@ -711,6 +736,7 @@ export const App = () => {
             codeTheme={codeTheme}
             displayReferenceCode={displayReferenceCode}
             displayPromptCode={displayPromptCode}
+            highlightedLineNumber={activeAttemptLine}
           />
           <PracticeEditor
             title={title}
@@ -718,6 +744,7 @@ export const App = () => {
             codeTheme={codeTheme}
             attemptCode={attemptCode}
             onAttemptCodeChange={setAttemptCode}
+            onCursorLineChange={setActiveAttemptLine}
             lineStatuses={lineStatuses}
             elapsedMs={elapsedMs}
             showTimer={showTimer}
