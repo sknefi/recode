@@ -576,6 +576,8 @@ export const getLineStatuses = (
         : activeLineIndex;
 
     if (!stillPossible && feedbackTiming === "line") {
+      const firstErrorLineNumber = errorLineIndex + 1;
+
       return compareAttempt(
         expectedText,
         actualText,
@@ -583,14 +585,23 @@ export const getLineStatuses = (
         language,
         commentBehavior,
         identifierMode,
-      ).lineComparisons.map((line) =>
-        line.lineNumber < activeLineNumber
-          ? line
-          : {
-              ...line,
-              status: "pending",
-            },
-      );
+      ).lineComparisons.map((line) => {
+        if (line.lineNumber >= activeLineNumber) {
+          return {
+            ...line,
+            status: "pending",
+          };
+        }
+
+        if (line.lineNumber < firstErrorLineNumber && line.status === "incorrect") {
+          return {
+            ...line,
+            status: "correct",
+          };
+        }
+
+        return line;
+      });
     }
 
     return Array.from({ length: maxLineCount }, (_, index) => {

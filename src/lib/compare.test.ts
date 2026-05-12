@@ -161,6 +161,49 @@ describe("compare", () => {
     expect(statuses[7].status).not.toBe("incorrect");
   });
 
+  it("does not mark earlier C lines wrong when extra blank lines precede a mismatch", () => {
+    const statuses = getLineStatuses(
+      [
+        "#include <unistd.h>",
+        "#include <stdlib.h>",
+        "",
+        "int maxfd, nid;",
+        "fd_set cur, rd, wr;",
+        "",
+        "struct { int id; char *buf; } cl[65536];",
+      ].join("\n"),
+      [
+        "#include <unistd.h>",
+        "#include <stdlib.h>",
+        "",
+        "",
+        "int\tmaxfd, nid;",
+        "fd_set cur, rd, wr;",
+        "",
+        "",
+        "struct { int id   ; char *buf;} c[1];",
+        "",
+      ].join("\n"),
+      "whitespace-tolerant",
+      "line",
+      false,
+      "c",
+      "require",
+      "exact",
+    );
+
+    expect(statuses.filter((line) => line.lineNumber < 9)).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ lineNumber: 5, status: "correct" }),
+        expect.objectContaining({ lineNumber: 6, status: "correct" }),
+      ]),
+    );
+    expect(statuses.some((line) => line.lineNumber < 9 && line.status === "incorrect")).toBe(
+      false,
+    );
+    expect(statuses.find((line) => line.lineNumber === 9)?.status).toBe("incorrect");
+  });
+
   it("supports prefix checks for instant feedback", () => {
     expect(isPrefixMatch("ret", "return (i);", "strict")).toBe(true);
     expect(isPrefixMatch("rex", "return (i);", "strict")).toBe(false);
