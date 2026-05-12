@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   compareAttempt,
+  getReferenceHighlightLine,
   getLineStatuses,
   isLineMatch,
   isPrefixMatch,
@@ -202,6 +203,75 @@ describe("compare", () => {
       false,
     );
     expect(statuses.find((line) => line.lineNumber === 9)?.status).toBe("incorrect");
+  });
+
+  it("highlights the next expected C line in whitespace tolerant mode", () => {
+    const highlightedLine = getReferenceHighlightLine(
+      [
+        "#include <unistd.h>",
+        "#include <stdlib.h>",
+        "",
+        "int maxfd, nid;",
+        "fd_set cur, rd, wr;",
+        "",
+        "struct { int id; char *buf; } cl[65536];",
+      ].join("\n"),
+      [
+        "#include <unistd.h>",
+        "#include <stdlib.h>",
+        "",
+        "",
+        "int\tmaxfd, nid;",
+        "fd_set cur, rd, wr;",
+        "",
+        "",
+      ].join("\n"),
+      "whitespace-tolerant",
+      "c",
+      "require",
+      8,
+    );
+
+    expect(highlightedLine).toBe(7);
+  });
+
+  it("keeps the C reference highlight on the active line until enter is pressed", () => {
+    const expected = ["int maxfd, nid;", "fd_set cur, rd, wr;"].join("\n");
+
+    expect(
+      getReferenceHighlightLine(
+        expected,
+        "int maxfd, nid;",
+        "whitespace-tolerant",
+        "c",
+        "require",
+        1,
+      ),
+    ).toBe(1);
+
+    expect(
+      getReferenceHighlightLine(
+        expected,
+        "int maxfd, nid;\n",
+        "whitespace-tolerant",
+        "c",
+        "require",
+        2,
+      ),
+    ).toBe(2);
+  });
+
+  it("highlights the next expected Python line when extra blank lines are active", () => {
+    const highlightedLine = getReferenceHighlightLine(
+      ["def run():", "    value = 1", "    return value"].join("\n"),
+      ["def run():", "", "", "    value = 1", "", ""].join("\n"),
+      "whitespace-tolerant",
+      "python",
+      "require",
+      6,
+    );
+
+    expect(highlightedLine).toBe(3);
   });
 
   it("supports prefix checks for instant feedback", () => {

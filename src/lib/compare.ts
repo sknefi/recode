@@ -377,6 +377,97 @@ const lineIndexForNormalizedOffset = (
   return fallbackLineIndex;
 };
 
+export const getReferenceHighlightLine = (
+  expectedText: string,
+  actualText: string,
+  strictness: Strictness,
+  language: Language,
+  commentBehavior: CommentBehavior,
+  activeLineNumber: number,
+) => {
+  if (strictness !== "whitespace-tolerant") {
+    return activeLineNumber;
+  }
+
+  const expectedComparableText = applyCommentBehavior(
+    expectedText,
+    language,
+    commentBehavior,
+  );
+  const actualComparableText = applyCommentBehavior(
+    actualText,
+    language,
+    commentBehavior,
+  );
+
+  if (language === "c") {
+    const actualLines = splitLines(actualComparableText);
+    const actualTextBeforeActiveLine = actualLines
+      .slice(0, Math.max(activeLineNumber - 1, 0))
+      .join("\n");
+    const normalizedExpected = normalizeText(
+      expectedComparableText,
+      strictness,
+      language,
+    );
+    const normalizedActualBeforeActiveLine = normalizeText(
+      actualTextBeforeActiveLine,
+      strictness,
+      language,
+    );
+
+    if (normalizedExpected.length === 0) {
+      return 1;
+    }
+
+    const mismatchIndex = firstMismatchIndex(
+      normalizedActualBeforeActiveLine,
+      normalizedExpected,
+    );
+    const nextOffset =
+      mismatchIndex >= 0
+        ? mismatchIndex
+        : Math.min(normalizedActualBeforeActiveLine.length, normalizedExpected.length - 1);
+    const expectedLines = splitLines(expectedComparableText);
+    const fallbackLineIndex = Math.max(expectedLines.length - 1, 0);
+
+    return lineIndexForNormalizedOffset(
+      expectedComparableText,
+      nextOffset,
+      fallbackLineIndex,
+    ) + 1;
+  }
+
+  if (language === "python") {
+    const expectedLines = buildComparableLines(
+      expectedComparableText,
+      strictness,
+      language,
+    );
+    const actualLines = splitLines(actualComparableText);
+    const activeLineIndex = Math.max(
+      Math.min(activeLineNumber - 1, actualLines.length - 1),
+      0,
+    );
+    const activeLine = actualLines[activeLineIndex] ?? "";
+    const nonEmptyLinesThroughActive = actualLines
+      .slice(0, activeLineIndex + 1)
+      .filter((line) => line.trim().length > 0).length;
+    const expectedLineIndex =
+      activeLine.trim().length === 0
+        ? nonEmptyLinesThroughActive
+        : Math.max(nonEmptyLinesThroughActive - 1, 0);
+
+    return (
+      expectedLines[
+        Math.min(Math.max(expectedLineIndex, 0), Math.max(expectedLines.length - 1, 0))
+      ]?.lineNumber ?? activeLineNumber
+    );
+  }
+
+  return activeLineNumber;
+};
+
 const isConfiguredTextMatch = (
   actual: string,
   expected: string,

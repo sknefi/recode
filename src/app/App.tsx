@@ -3,6 +3,7 @@ import { ArrowLeft, BookOpen, Moon, Sun } from "lucide-react";
 import { hasComments } from "../lib/comments";
 import {
   compareAttempt,
+  getReferenceHighlightLine,
   getLineStatuses,
   getVisibleMismatchCount,
   type AttemptComparison,
@@ -323,6 +324,19 @@ export const App = () => {
   const visibleMismatchCount = useMemo(
     () => getVisibleMismatchCount(lineStatuses),
     [lineStatuses],
+  );
+
+  const highlightedReferenceLine = useMemo(
+    () =>
+      getReferenceHighlightLine(
+        referenceCode,
+        attemptCode,
+        strictness,
+        language,
+        "require",
+        activeAttemptLine,
+      ),
+    [activeAttemptLine, attemptCode, language, referenceCode, strictness],
   );
 
   const finalComparison: AttemptComparison | null = useMemo(() => {
@@ -736,7 +750,7 @@ export const App = () => {
             codeTheme={codeTheme}
             displayReferenceCode={displayReferenceCode}
             displayPromptCode={displayPromptCode}
-            highlightedLineNumber={activeAttemptLine}
+            highlightedLineNumber={highlightedReferenceLine}
           />
           <PracticeEditor
             title={title}
