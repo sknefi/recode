@@ -110,7 +110,7 @@ const codeThemeColors: Record<
     comment: "#6a9955",
     number: "#b5cea8",
     function: "#dcdcaa",
-    type: "#4ec9b0",
+    type: "#569cd6",
     variable: "#9cdcfe",
     constant: "#4fc1ff",
     escape: "#d7ba7d",
