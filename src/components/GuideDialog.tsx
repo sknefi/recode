@@ -66,6 +66,8 @@ export const GuideDialog = ({ open, onClose }: GuideDialogProps) => {
             <dl>
               <dt>Strictness</dt>
               <dd>Strict requires exact text. Whitespace tolerant ignores spaces and tabs.</dd>
+              <dt>Names</dt>
+              <dd>Flexible names is beta and may miss edge cases in complex scopes.</dd>
               <dt>Feedback</dt>
               <dd>Choose instant, line-based, or submit-only checking.</dd>
               <dt>Masks</dt>

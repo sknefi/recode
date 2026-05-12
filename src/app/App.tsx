@@ -66,34 +66,116 @@ const createAttemptId = () => `${Date.now()}-${Math.random().toString(16).slice(
 type Phase = "setup" | "practice" | "results";
 
 const appHistoryState = { app: "examprep-code-trainer" };
+const storageKey = "examprep-code-trainer-state-v1";
+const maxStoredAttempts = 50;
+
+type StoredAttemptSummary = Omit<PracticeAttemptSummary, "createdAt"> & {
+  createdAt: string;
+};
+
+type StoredAppState = {
+  title: string;
+  language: Language;
+  codeTheme: CodeTheme;
+  referenceCode: string;
+  mode: PracticeMode;
+  strictness: Strictness;
+  identifierMode: IdentifierMode;
+  feedbackTiming: FeedbackTiming;
+  showTimer: boolean;
+  promptMask: PromptMaskConfig;
+  skeleton: SkeletonConfig;
+  missingPieces: MissingPiecesConfig;
+  skeletonCode: string;
+  skeletonEdited: boolean;
+  attemptCode: string;
+  startedAt: number | null;
+  draftKey: string | null;
+  attempts: StoredAttemptSummary[];
+  theme: "light" | "dark";
+};
+
+const readStoredState = (): Partial<StoredAppState> => {
+  if (typeof window === "undefined") {
+    return {};
+  }
+
+  try {
+    const rawState = window.localStorage.getItem(storageKey);
+
+    return rawState ? JSON.parse(rawState) : {};
+  } catch {
+    return {};
+  }
+};
+
+const hydrateAttempts = (
+  attempts: StoredAppState["attempts"] | undefined,
+): PracticeAttemptSummary[] => {
+  if (!Array.isArray(attempts)) {
+    return [];
+  }
+
+  return attempts.slice(0, maxStoredAttempts).map((attempt) => ({
+    ...attempt,
+    createdAt: new Date(attempt.createdAt),
+  }));
+};
 
 export const App = () => {
+  const [storedState] = useState(readStoredState);
   const [phase, setPhase] = useState<Phase>("setup");
-  const [title, setTitle] = useState("ft_strlen");
-  const [language, setLanguage] = useState<Language>("c");
-  const [codeTheme, setCodeTheme] = useState<CodeTheme>("vscode-dark");
-  const [referenceCode, setReferenceCode] = useState(sampleCode);
-  const [mode, setMode] = useState<PracticeMode>("fog");
-  const [strictness, setStrictness] = useState<Strictness>("strict");
-  const [identifierMode, setIdentifierMode] = useState<IdentifierMode>("exact");
-  const [feedbackTiming, setFeedbackTiming] = useState<FeedbackTiming>("line");
-  const [showTimer, setShowTimer] = useState(false);
-  const [promptMask, setPromptMask] = useState<PromptMaskConfig>(defaultPromptMask);
-  const [skeleton, setSkeleton] = useState<SkeletonConfig>(defaultSkeleton);
-  const [missingPieces, setMissingPieces] =
-    useState<MissingPiecesConfig>(defaultMissingPieces);
-  const [skeletonCode, setSkeletonCode] = useState(() =>
-    generateSkeleton(sampleCode, "c"),
+  const [title, setTitle] = useState(storedState.title ?? "ft_strlen");
+  const [language, setLanguage] = useState<Language>(storedState.language ?? "c");
+  const [codeTheme, setCodeTheme] = useState<CodeTheme>(
+    storedState.codeTheme ?? "vscode-dark",
   );
-  const [skeletonEdited, setSkeletonEdited] = useState(false);
-  const [attemptCode, setAttemptCode] = useState("");
-  const [startedAt, setStartedAt] = useState<number | null>(null);
+  const [referenceCode, setReferenceCode] = useState(
+    storedState.referenceCode ?? sampleCode,
+  );
+  const [mode, setMode] = useState<PracticeMode>(storedState.mode ?? "fog");
+  const [strictness, setStrictness] = useState<Strictness>(
+    storedState.strictness ?? "strict",
+  );
+  const [identifierMode, setIdentifierMode] = useState<IdentifierMode>(
+    storedState.identifierMode ?? "exact",
+  );
+  const [feedbackTiming, setFeedbackTiming] = useState<FeedbackTiming>(
+    storedState.feedbackTiming ?? "line",
+  );
+  const [showTimer, setShowTimer] = useState(storedState.showTimer ?? false);
+  const [promptMask, setPromptMask] = useState<PromptMaskConfig>(
+    storedState.promptMask ?? defaultPromptMask,
+  );
+  const [skeleton, setSkeleton] = useState<SkeletonConfig>(
+    storedState.skeleton ?? defaultSkeleton,
+  );
+  const [missingPieces, setMissingPieces] =
+    useState<MissingPiecesConfig>(storedState.missingPieces ?? defaultMissingPieces);
+  const [skeletonCode, setSkeletonCode] = useState(() =>
+    storedState.skeletonCode ??
+    generateSkeleton(storedState.referenceCode ?? sampleCode, storedState.language ?? "c"),
+  );
+  const [skeletonEdited, setSkeletonEdited] = useState(
+    storedState.skeletonEdited ?? false,
+  );
+  const [attemptCode, setAttemptCode] = useState(storedState.attemptCode ?? "");
+  const [startedAt, setStartedAt] = useState<number | null>(
+    storedState.startedAt ?? null,
+  );
+  const [draftKey, setDraftKey] = useState<string | null>(
+    storedState.draftKey ?? null,
+  );
   const [finishedAt, setFinishedAt] = useState<number | null>(null);
-  const [attempts, setAttempts] = useState<PracticeAttemptSummary[]>([]);
+  const [attempts, setAttempts] = useState<PracticeAttemptSummary[]>(() =>
+    hydrateAttempts(storedState.attempts),
+  );
   const [lastSummary, setLastSummary] = useState<PracticeAttemptSummary | null>(null);
   const [now, setNow] = useState(Date.now());
   const [guideOpen, setGuideOpen] = useState(false);
-  const [theme, setTheme] = useState<"light" | "dark">("dark");
+  const [theme, setTheme] = useState<"light" | "dark">(
+    storedState.theme ?? "dark",
+  );
 
   const generatedSkeletonCode = useMemo(
     () => generateSkeleton(referenceCode, language),
@@ -163,6 +245,34 @@ export const App = () => {
   const effectiveFeedbackTiming: FeedbackTiming =
     mode === "exam" ? "submit" : feedbackTiming;
 
+  const currentDraftKey = useMemo(
+    () =>
+      JSON.stringify({
+        referenceCode,
+        language,
+        mode,
+        strictness,
+        identifierMode,
+        feedbackTiming: effectiveFeedbackTiming,
+        promptMask,
+        skeleton,
+        missingPieces,
+        promptCode,
+      }),
+    [
+      effectiveFeedbackTiming,
+      identifierMode,
+      language,
+      missingPieces,
+      mode,
+      promptCode,
+      promptMask,
+      referenceCode,
+      skeleton,
+      strictness,
+    ],
+  );
+
   const elapsedMs = startedAt ? (finishedAt ?? now) - startedAt : 0;
 
   const lineStatuses = useMemo(
@@ -216,6 +326,60 @@ export const App = () => {
   ]);
 
   useEffect(() => {
+    try {
+      const stateToStore: StoredAppState = {
+        title,
+        language,
+        codeTheme,
+        referenceCode,
+        mode,
+        strictness,
+        identifierMode,
+        feedbackTiming,
+        showTimer,
+        promptMask,
+        skeleton,
+        missingPieces,
+        skeletonCode,
+        skeletonEdited,
+        attemptCode: phase === "results" ? "" : attemptCode,
+        startedAt: phase === "results" ? null : startedAt,
+        draftKey: phase === "results" || !attemptCode ? null : draftKey,
+        attempts: attempts.slice(0, maxStoredAttempts).map((attempt) => ({
+          ...attempt,
+          createdAt: attempt.createdAt.toISOString(),
+        })),
+        theme,
+      };
+
+      window.localStorage.setItem(storageKey, JSON.stringify(stateToStore));
+    } catch {
+      // Ignore storage failures such as private browsing quota limits.
+    }
+  }, [
+    attempts,
+    attemptCode,
+    codeTheme,
+    draftKey,
+    feedbackTiming,
+    identifierMode,
+    language,
+    missingPieces,
+    mode,
+    promptMask,
+    referenceCode,
+    showTimer,
+    skeleton,
+    skeletonCode,
+    skeletonEdited,
+    startedAt,
+    strictness,
+    theme,
+    title,
+    phase,
+  ]);
+
+  useEffect(() => {
     if (phase !== "practice") {
       return undefined;
     }
@@ -243,7 +407,6 @@ export const App = () => {
 
   useEffect(() => {
     const handlePopState = () => {
-      setAttemptCode("");
       resetToSetup();
     };
 
@@ -303,7 +466,20 @@ export const App = () => {
     }
 
     setAttemptCode(initialPracticeCode());
+    setDraftKey(currentDraftKey);
     setStartedAt(Date.now());
+    setFinishedAt(null);
+    setNow(Date.now());
+    setLastSummary(null);
+    setPhase("practice");
+  };
+
+  const continuePractice = () => {
+    if (referenceHasComments || !attemptCode.trim() || draftKey !== currentDraftKey) {
+      return;
+    }
+
+    setStartedAt((current) => current ?? Date.now());
     setFinishedAt(null);
     setNow(Date.now());
     setLastSummary(null);
@@ -336,12 +512,13 @@ export const App = () => {
 
     setFinishedAt(completedAt);
     setLastSummary(summary);
-    setAttempts((current) => [summary, ...current]);
+    setAttempts((current) => [summary, ...current].slice(0, maxStoredAttempts));
     setPhase("results");
   };
 
   const restartCurrent = () => {
     setAttemptCode(initialPracticeCode());
+    setDraftKey(currentDraftKey);
     setStartedAt(Date.now());
     setFinishedAt(null);
     setNow(Date.now());
@@ -352,12 +529,21 @@ export const App = () => {
   const resetToSetup = () => {
     setPhase("setup");
     setFinishedAt(null);
-    setStartedAt(null);
     setLastSummary(null);
   };
 
   const cancelPractice = () => {
+    resetToSetup();
+  };
+
+  const clearDraft = () => {
     setAttemptCode("");
+    setStartedAt(null);
+    setDraftKey(null);
+  };
+
+  const startNewExercise = () => {
+    clearDraft();
     resetToSetup();
   };
 
@@ -384,6 +570,11 @@ export const App = () => {
     ? "Remove comments before starting. Comments are not allowed in reference code."
     : "";
   const canStart = referenceCode.trim().length > 0 && !referenceHasComments;
+  const canContinue =
+    canStart &&
+    attemptCode.trim().length > 0 &&
+    draftKey === currentDraftKey &&
+    phase === "setup";
 
   const handleReferenceCodeChange = (value: string) => {
     const detectedLanguage = detectLanguage(value);
@@ -393,11 +584,13 @@ export const App = () => {
     }
 
     setReferenceCode(value);
+    clearDraft();
     setSkeletonEdited(false);
   };
 
   const handleLanguageChange = (value: Language) => {
     setLanguage(value);
+    clearDraft();
     setSkeletonEdited(false);
   };
 
@@ -503,7 +696,9 @@ export const App = () => {
             onRegenerateSkeleton={regenerateSkeleton}
             previewCode={previewCode}
             onStart={startPractice}
+            onContinue={continuePractice}
             canStart={canStart}
+            canContinue={canContinue}
           />
         </div>
       )}
@@ -540,7 +735,7 @@ export const App = () => {
           summary={lastSummary}
           attempts={attempts}
           onPracticeAgain={restartCurrent}
-          onNewExercise={resetToSetup}
+          onNewExercise={startNewExercise}
         />
       )}
     </main>

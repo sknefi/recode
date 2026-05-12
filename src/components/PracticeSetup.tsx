@@ -40,7 +40,9 @@ type PracticeSetupProps = {
   onRegenerateSkeleton: () => void;
   previewCode: string;
   onStart: () => void;
+  onContinue: () => void;
   canStart: boolean;
+  canContinue: boolean;
 };
 
 const modes: Array<{ value: PracticeMode; title: string; body: string }> = [
@@ -148,7 +150,9 @@ export const PracticeSetup = ({
   onRegenerateSkeleton,
   previewCode,
   onStart,
+  onContinue,
   canStart,
+  canContinue,
 }: PracticeSetupProps) => {
   const updateMissingPieces = (patch: Partial<MissingPiecesConfig>) => {
     onMissingPiecesChange({
@@ -224,7 +228,14 @@ export const PracticeSetup = ({
                 className={identifierMode === entry.value ? "active" : ""}
                 onClick={() => onIdentifierModeChange(entry.value)}
               >
-                {entry.label}
+                {entry.value === "flexible" ? (
+                  <span className="option-with-badge">
+                    {entry.label}
+                    <span className="beta-badge">Beta</span>
+                  </span>
+                ) : (
+                  entry.label
+                )}
               </button>
             ))}
           </div>
@@ -428,14 +439,25 @@ export const PracticeSetup = ({
         </div>
       </div>
 
-      <button
-        type="button"
-        className="primary-action"
-        onClick={onStart}
-        disabled={!canStart}
-      >
-        Start {formatModeLabel(mode)}
-      </button>
+      <div className="start-actions">
+        {canContinue && (
+          <button
+            type="button"
+            className="ghost-button continue-action"
+            onClick={onContinue}
+          >
+            Continue
+          </button>
+        )}
+        <button
+          type="button"
+          className="primary-action"
+          onClick={onStart}
+          disabled={!canStart}
+        >
+          {canContinue ? "Start New" : `Start ${formatModeLabel(mode)}`}
+        </button>
+      </div>
     </section>
   );
 };
